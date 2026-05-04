@@ -1,0 +1,2 @@
+[console_scripts]
+eval-migration = agentorskill_cli.main:main

@@ -1,0 +1,22 @@
+{
+  "library_name": "mindtorch",
+  "version_hint": null,
+  "install": {
+    "commands": [],
+    "pip_packages": ["mindtorch", "mindspore"],
+    "notes": "Requires MindSpore matching your Ascend/CANN stack."
+  },
+  "enable": {
+    "preamble": "from mindtorch.tools import mstorch_enable\n",
+    "import_order_note": "mstorch_enable must be imported before torch/torchvision per docs."
+  },
+  "device": {
+    "target_device": "cpu",
+    "tensor_device_code": null,
+    "model_to_device": null
+  },
+  "constraints": [],
+  "examples": [],
+  "confidence": null,
+  "extra": {}
+}

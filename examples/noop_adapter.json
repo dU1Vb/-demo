@@ -1,0 +1,17 @@
+{
+  "library_name": "baseline_pytorch",
+  "install": {
+    "commands": [],
+    "pip_packages": [],
+    "notes": "No migration library; baseline CPU PyTorch only."
+  },
+  "enable": {
+    "preamble": "# noop baseline\n",
+    "import_order_note": ""
+  },
+  "device": {
+    "target_device": "cpu"
+  },
+  "constraints": [],
+  "examples": []
+}

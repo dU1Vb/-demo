@@ -1,0 +1,22 @@
+{
+  "library_name": "torchax",
+  "version_hint": null,
+  "install": {
+    "commands": [],
+    "pip_packages": ["torchax"],
+    "notes": "See upstream README for JAX/torch versions."
+  },
+  "enable": {
+    "preamble": "import torchax\ntorchax.enable_globally()",
+    "import_order_note": "Enable before heavy torch usage; use device 'jax' when documented."
+  },
+  "device": {
+    "target_device": "jax",
+    "tensor_device_code": "'jax'",
+    "model_to_device": "m.to('jax')"
+  },
+  "constraints": [],
+  "examples": [],
+  "confidence": null,
+  "extra": {}
+}
