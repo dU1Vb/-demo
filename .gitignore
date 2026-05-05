@@ -1,0 +1,32 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Pip editable-install metadata (auto-generated, do not commit)
+*.egg-info/
+
+# Test / benchmark reports (generated artifacts)
+reports/
+
+# Output artifacts
+fusion_result.json
+
+# Virtual environments
+.venv*/
+venv/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# MindSpore / CANN runtime artifacts
+kernel_meta/
+rank_0/
+offload/
+
+# OS
+.DS_Store
+Thumbs.db

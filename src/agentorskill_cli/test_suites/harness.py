@@ -182,6 +182,100 @@ def run_script(
             pass
 
 
+def _wrap_body_for_exec(body: str) -> str:
+    """Wrap test body for in-process exec: define _test(), call it, capture result."""
+    return f"""
+def _test():
+{body}
+
+try:
+    _result = _test()
+    if not isinstance(_result, dict):
+        _result = {{"ok": False, "error": "not a dict"}}
+except Exception as _e:
+    import traceback as _tb
+    _result = {{
+        "ok": False,
+        "error": str(_e),
+        "trace": _tb.format_exc(),
+    }}
+"""
+
+
+def execute_preamble(
+    adapter: AdapterSpec,
+    *,
+    honor_device: bool = False,
+) -> dict[str, Any]:
+    """Execute the adapter preamble in-process once. Returns the resulting namespace."""
+    preamble_source = adapter.enable.preamble
+    device_extra = ""
+    if honor_device:
+        dev = (adapter.device.target_device or "cpu").strip()
+        if dev:
+            device_extra = _default_device_block(dev)
+    source = f"{preamble_source}\n{device_extra}"
+    namespace: dict[str, Any] = {}
+    exec(source, namespace)
+    return namespace
+
+
+def run_case_inprocess(
+    case: TestCase,
+    *,
+    preamble_ns: dict[str, Any] | None = None,
+) -> EvalCaseResult:
+    """Run a single test case in the current process via exec(), reusing preamble state."""
+    import time as _time
+
+    t0 = _time.perf_counter()
+    body = case.body
+    wrapper = _wrap_body_for_exec(body)
+
+    try:
+        ns = dict(preamble_ns) if preamble_ns else {}
+        exec(wrapper, ns)
+        result: dict[str, Any] = ns.get("_result", {"ok": False, "error": "no result"})
+    except Exception as e:
+        import traceback as _tb
+
+        result = {
+            "ok": False,
+            "error": str(e),
+            "trace": _tb.format_exc(),
+        }
+
+    dt = _time.perf_counter() - t0
+
+    skipped = bool(result.get("skipped"))
+    ok = result.get("ok", True)
+    if skipped:
+        ok = True
+
+    details: dict[str, Any] = {
+        k: v for k, v in result.items() if k not in ("ok", "error", "trace")
+    }
+    if "trace" in result:
+        details["trace"] = str(result["trace"])[:2000]
+
+    err = result.get("error") if not ok else None
+    if skipped:
+        err = None
+
+    return EvalCaseResult(
+        case_id=case.id,
+        name=case.name,
+        ok=ok,
+        duration_s=dt,
+        error=err,
+        details=details,
+        category=case.category,
+        weight=case.weight,
+        counts_toward_adaptation=case.counts_toward_adaptation,
+        skipped=skipped,
+    )
+
+
 def run_case(
     adapter: AdapterSpec,
     case: TestCase,

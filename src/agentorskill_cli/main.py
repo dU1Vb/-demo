@@ -15,7 +15,11 @@ from agentorskill_cli.doc_reader import collect_docs
 from agentorskill_cli.hardware_probe import format_hardware_summary, probe_hardware, user_confirms
 from agentorskill_cli.llm_adapter import extract_adapter_with_llm
 from agentorskill_cli.report import build_report_payload, write_reports
-from agentorskill_cli.test_suites.runner import execute_plan, parse_adaptation_suites_arg
+from agentorskill_cli.test_suites.runner import (
+    execute_plan,
+    execute_plan_inprocess,
+    parse_adaptation_suites_arg,
+)
 
 app = typer.Typer(
     name="eval-migration",
@@ -140,6 +144,14 @@ def cmd_run(
     ] = False,
     numeric_rtol: Annotated[float, typer.Option("--numeric-rtol", help="allclose rtol vs baseline")] = 1e-4,
     numeric_atol: Annotated[float, typer.Option("--numeric-atol", help="allclose atol vs baseline")] = 1e-5,
+    single_process: Annotated[
+        bool,
+        typer.Option(
+            "--single-process",
+            help="Run all tests in a single process (fast; preamble executed once). "
+            "Numeric and benchmark suites fall back to subprocess mode.",
+        ),
+    ] = False,
 ) -> None:
     """Probe hardware, load/extract adapter, run suite(s), write reports."""
     if not no_probe:
@@ -156,7 +168,8 @@ def cmd_run(
     console.print(f"[bold]Library:[/bold] {spec.library_name}")
 
     skip_bench = True
-    summ = execute_plan(
+    runner = execute_plan_inprocess if single_process else execute_plan
+    summ = runner(
         spec,
         suite,
         skip_benchmark_if_smoke_fails=skip_bench,

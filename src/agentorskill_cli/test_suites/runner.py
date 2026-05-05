@@ -9,7 +9,11 @@ from agentorskill_cli.adapter_schema import AdapterSpec
 from agentorskill_cli.metrics import compute_evaluation_summary
 from agentorskill_cli.test_suites.benchmark import BENCH_CASES
 from agentorskill_cli.test_suites.core import CORE_CASES
-from agentorskill_cli.test_suites.harness import run_case
+from agentorskill_cli.test_suites.harness import (
+    execute_preamble,
+    run_case,
+    run_case_inprocess,
+)
 from agentorskill_cli.test_suites.models import MODEL_CASES
 from agentorskill_cli.test_suites.numeric import NUMERIC_CASES
 from agentorskill_cli.test_suites.smoke import SMOKE_CASES
@@ -170,6 +174,97 @@ def execute_plan(
                 continue
 
         sr = run_cases(sn, adapter, cases, honor_device=honor_device)
+        summary.suites[sn] = sr
+        if sn == "smoke" and sr.failed > 0:
+            summary.smoke_failed = True
+
+    if name == "all" and summary.smoke_failed and skip_benchmark_if_smoke_fails:
+        if "benchmark" not in summary.suites:
+            summary.suites["benchmark"] = SuiteRun(name="benchmark", skipped=True)
+
+    summ = compute_evaluation_summary(
+        summary,
+        adaptation_suites=adaptation_suites,
+        include_smoke_in_adaptation=include_smoke_in_adaptation,
+    )
+    summary.evaluation_summary = summ
+
+    return summary
+
+
+def execute_plan_inprocess(
+    adapter: AdapterSpec,
+    suite: str,
+    *,
+    skip_benchmark_if_smoke_fails: bool = True,
+    honor_device: bool = False,
+    adaptation_suites: frozenset[str] | None = None,
+    include_smoke_in_adaptation: bool = False,
+    rtol: float = DEFAULT_RTOL,
+    atol: float = DEFAULT_ATOL,
+) -> RunSummary:
+    """Execute suites in a single process — preamble runs once, all tests share state."""
+    preamble_ns = execute_preamble(adapter, honor_device=honor_device)
+
+    summary = RunSummary()
+    name = suite.lower().strip()
+    if name == "all":
+        order = ["smoke", "core", "models", "training", "numeric", "benchmark"]
+    elif name == "numeric":
+        order = ["numeric"]
+    else:
+        order = [name]
+
+    # Suites that always use subprocess isolation (numeric needs baseline, benchmark needs perf isolation)
+    SUBPROCESS_SUITES = {"numeric", "benchmark"}
+
+    for sn in order:
+        if sn in SUBPROCESS_SUITES:
+            # Fall back to subprocess mode for these suites
+            if sn == "numeric":
+                sr, delta, fidelity = run_numeric_aggregate(
+                    adapter, rtol=rtol, atol=atol, honor_device=honor_device
+                )
+                summary.suites["numeric"] = sr
+                summary.numeric_delta = delta
+                summary.numeric_fidelity = fidelity
+                continue
+
+            cases = SUITE_MAP.get(sn)
+            if not cases:
+                summary.suites[sn] = SuiteRun(name=sn, skipped=True)
+                continue
+
+            if sn == "benchmark" and skip_benchmark_if_smoke_fails:
+                sm = summary.suites.get("smoke")
+                if sm and sm.failed > 0:
+                    summary.suites["benchmark"] = SuiteRun(name="benchmark", skipped=True)
+                    continue
+
+            sr = run_cases(sn, adapter, cases, honor_device=honor_device)
+            summary.suites[sn] = sr
+            continue
+
+        # In-process suites: smoke, core, models, training
+        cases = SUITE_MAP.get(sn)
+        if not cases:
+            summary.suites[sn] = SuiteRun(name=sn, skipped=True)
+            continue
+
+        sr = SuiteRun(name=sn)
+        for tc in cases:
+            if tc.include_adapter:
+                tr = run_case_inprocess(tc, preamble_ns=preamble_ns)
+            else:
+                tr = run_case(adapter, tc, honor_device=honor_device)
+            sr.cases.append(tr)
+            if tr.skipped:
+                sr.skipped_n += 1
+            elif tr.ok:
+                sr.passed += 1
+            else:
+                sr.failed += 1
+
         summary.suites[sn] = sr
         if sn == "smoke" and sr.failed > 0:
             summary.smoke_failed = True

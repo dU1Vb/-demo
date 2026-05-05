@@ -1,0 +1,32 @@
+{
+  "library_name": "torch4ms_npu",
+  "version_hint": "0.0.8",
+  "install": {
+    "commands": [],
+    "pip_packages": ["torch", "mindspore"],
+    "notes": "torch4ms via PYTHONPATH. Requires Ascend NPU + CANN 8.5.0 + MindSpore 2.8.0."
+  },
+  "enable": {
+    "preamble": "import os\nos.environ.setdefault('TORCH4MS_DEVICE_TARGET', 'Ascend')\nos.environ.setdefault('TORCH4MS_USE_MS_GRAPH_MODE', '0')\n\nimport torch4ms\nfrom torch4ms.config import Configuration\n\n_cfg = Configuration()\n_cfg.default_device_target = os.environ.get('TORCH4MS_DEVICE_TARGET', 'Ascend')\n_cfg.use_ms_graph_mode = bool(int(os.environ.get('TORCH4MS_USE_MS_GRAPH_MODE', '0')))\ntorch4ms.env = torch4ms.tensor.Environment(configuration=_cfg)\n_env = torch4ms.default_env()\n_env.__enter__()\n",
+    "import_order_note": "torch4ms must be imported before heavy torch usage; preamble creates and enters NPU Environment."
+  },
+  "device": {
+    "target_device": "cpu",
+    "tensor_device_code": null,
+    "model_to_device": null
+  },
+  "constraints": [
+    {"api_or_area": "Conv3d", "reason": "Ascend AvgPool3D does not support float32 input; may need cast fallback"},
+    {"api_or_area": "einsum", "reason": "Some einsum patterns may fail on CPU; Ascend supports via operator decomposition"},
+    {"api_or_area": "AMP/CUDA", "reason": "CUDA AMP tests will skip on NPU"}
+  ],
+  "examples": [],
+  "confidence": null,
+  "extra": {
+    "env_vars_required": [
+      "TORCH4MS_DEVICE_TARGET=Ascend",
+      "TORCH4MS_USE_MS_GRAPH_MODE=0",
+      "TORCH4MS_REPO_ROOT=/root/autodl-tmp/ascend-torch4ms-ms272-stable"
+    ]
+  }
+}
