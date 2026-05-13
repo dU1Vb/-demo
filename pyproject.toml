@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "agentorskill-cli"
+version = "0.1.0"
+description = "Evaluate PyTorch migration libraries with reproducible test suites and reports."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "httpx>=0.25",
+    "openai>=1.0",
+    "pydantic>=2",
+    "rich>=13",
+    "typer>=0.12",
+]
+
+[project.optional-dependencies]
+test = [
+    "pytest>=8",
+]
+
+[project.scripts]
+eval-migration = "agentorskill_cli.main:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]

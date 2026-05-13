@@ -5,12 +5,22 @@ Evaluate migration libraries (TorchAX, MindTorch, …) with a reproducible CLI: 
 ## Install
 
 ```bash
+cd /path/to/-demo
 pip install -e .
 ```
 
+For local test development, install the test extra:
+
+```bash
+pip install -e ".[test]"
+pytest -q
+```
+
+The package intentionally does not install PyTorch, MindSpore, JAX, CANN, or vendor migration libraries by default. Install those in the target evaluation environment as needed.
+
 ## LLM configuration (API key, model, base URL)
 
-Use these when you call `extract` or `run` **without** `--adapter-file`, so the tool can read README/docs and produce an `AdapterSpec`.
+Use these only when you call `extract` or `run` **without** `--adapter-file`, so the tool can read README/docs and produce an `AdapterSpec`. Runs with `--adapter-file` use the hand-written adapter directly and do not call an LLM.
 
 ### Environment variables
 

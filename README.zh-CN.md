@@ -5,12 +5,22 @@
 ## 安装
 
 ```bash
+cd /path/to/-demo
 pip install -e .
 ```
 
+本地开发和运行单元测试可安装测试依赖：
+
+```bash
+pip install -e ".[test]"
+pytest -q
+```
+
+默认安装不会拉取 PyTorch、MindSpore、JAX、CANN 或具体迁移库。请按目标评测环境自行安装这些框架和厂商依赖。
+
 ## LLM 配置（API 密钥、模型、Base URL）
 
-在**不使用** `--adapter-file`、需要让工具从文档抽取 `AdapterSpec` 时，需配置以下项（适用于 `extract` 与 `run`）。
+只有在**不使用** `--adapter-file`、需要让工具从文档抽取 `AdapterSpec` 时，才需配置以下项（适用于 `extract` 与 `run`）。使用 `--adapter-file` 时会直接读取手写 adapter，不会调用 LLM。
 
 ### 环境变量
 
