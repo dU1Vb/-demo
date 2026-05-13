@@ -8,6 +8,7 @@ __pycache__/
 
 # Test / benchmark reports (generated artifacts)
 reports/
+reports*/
 
 # Output artifacts
 fusion_result.json
