@@ -13,6 +13,11 @@ reports*/
 # Output artifacts
 fusion_result.json
 
+# Local secrets and API keys
+.env
+.env.*
+!.env.example
+
 # Virtual environments
 .venv*/
 venv/
