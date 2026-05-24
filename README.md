@@ -18,6 +18,25 @@ pytest -q
 
 The package intentionally does not install PyTorch, MindSpore, JAX, CANN, or vendor migration libraries by default. Install those in the target evaluation environment as needed.
 
+## TorchBridgeBench benchmark mirror
+
+This repository also mirrors the static TorchBridgeBench deterministic core and
+benchmark catalog derived from `ClaudeCodePluginDesign.md`.
+
+```bash
+python scripts/generate_benchmark_library.py
+python scripts/tbbcc.py eval-suite \
+  --suite benchmarks/v1.0.0/suites/dev_noop.json \
+  --out reports_tbbcc_dev
+python scripts/tbbcc.py eval-suite \
+  --suite benchmarks/v1.0.0/suites/smoke_noop.json \
+  --out reports_tbbcc_smoke
+```
+
+Use `benchmarks/v1.0.0/suites/all_noop.json` for the full generated matrix.
+`dev_noop.json` is the recommended fast path for routine flow validation;
+`smoke_noop.json` keeps L3/L4 coverage and is substantially slower.
+
 ## LLM configuration (API key, model, base URL)
 
 Use these only when you call `extract` or `run` **without** `--adapter-file`, so the tool can read README/docs and produce an `AdapterSpec`. Runs with `--adapter-file` use the hand-written adapter directly and do not call an LLM.
@@ -98,6 +117,9 @@ Numeric fidelity fields (`numeric_fidelity` in the report) include `within_toler
 # Show help
 eval-migration --help
 
+# Show the mirrored TorchBridgeBench core help
+python scripts/tbbcc.py --help
+
 # Probe hardware (with confirmation)
 eval-migration probe
 
@@ -110,6 +132,32 @@ eval-migration run --adapter-file examples/torchax_adapter.json --suite all --ye
 # Extract adapter from docs + run (requires OPENAI_API_KEY)
 eval-migration run --readme-url https://raw.githubusercontent.com/google/torchax/main/README.md --suite smoke --yes
 ```
+
+## Agent workflow
+
+Agent mode runs after the baseline suites and only sees failed cases. It has three stages:
+
+- `--agent-mode diagnose`: use the LLM to classify failures and decide whether each failure counts toward migration compatibility.
+- `--agent-mode revalidate`: diagnose, then run controlled rechecks such as rerunning the same case in subprocess mode or without the adapter.
+- `--agent-mode repair`: diagnose, revalidate, then attempt AdapterSpec repairs and rerun the failed case. The repair agent proposes adapter JSON changes only; it does not patch migration library source code.
+
+Example:
+
+```bash
+source /home/ma-user/work/load_deepseek_agent_env.sh
+
+eval-migration run \
+  --adapter-file examples/torch4ms_adapter.json \
+  --suite smoke \
+  --single-process \
+  --yes \
+  --agent-mode revalidate \
+  --agent-max-failures 5
+```
+
+Reports include `agent_report` with diagnostic evidence, revalidation results, repair attempts, migration-effort stats (`ME` inputs such as LLM calls, re-runs and patch diff lines), `AR`, and `migrate@k`.
+
+See the detailed Chinese guide: [docs/AGENT_USAGE.zh-CN.md](docs/AGENT_USAGE.zh-CN.md).
 
 ## Adapter JSON
 

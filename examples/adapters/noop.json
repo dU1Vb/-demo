@@ -1,0 +1,11 @@
+{
+  "bridge_id": "noop",
+  "track": "intercept",
+  "preamble": "",
+  "source_preamble": "",
+  "atol": 1e-9,
+  "rtol": 1e-9,
+  "timeout_seconds": 60,
+  "docs": "No-op adapter for local smoke tests. Baseline and target execute the same code.",
+  "known_gaps": []
+}

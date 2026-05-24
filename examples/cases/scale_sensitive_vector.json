@@ -1,0 +1,15 @@
+{
+  "id": "bench/local/scale-sensitive-vector",
+  "level": "L1",
+  "track": "both",
+  "code": "def run():\n    scale = globals().get('BRIDGE_SCALE', 1.0)\n    return [scale * x for x in [1.0, 2.0, 4.0]]",
+  "expected_ops": ["python:function", "python:list-comprehension"],
+  "ground_truth": {
+    "atol": 1e-9,
+    "rtol": 1e-9,
+    "rationale": "Deliberately sensitive to target-side adapter preamble."
+  },
+  "difficulty": "basic",
+  "failure_mode": "numeric_drift",
+  "seed": 42
+}

@@ -1,0 +1,33 @@
+{
+  "suite_id": "l3_noop",
+  "cases": [
+    "../cases/L3/resnet18/fp32_basic.json",
+    "../cases/L3/resnet18/fp16_amp.json",
+    "../cases/L3/resnet18/bn_momentum_01.json",
+    "../cases/L3/resnet18/trap_modelmeta.json",
+    "../cases/L3/vit_tiny/fp32_basic.json",
+    "../cases/L3/vit_tiny/fp16.json",
+    "../cases/L3/vit_tiny/gelu_vs_silu.json",
+    "../cases/L3/vit_tiny/trap_modelmeta.json",
+    "../cases/L3/mobilenetv2/fp32_basic.json",
+    "../cases/L3/mobilenetv2/fp16.json",
+    "../cases/L3/mobilenetv2/narrow.json",
+    "../cases/L3/mobilenetv2/trap_modelmeta.json",
+    "../cases/L3/yolo_backbone/fp32_basic.json",
+    "../cases/L3/yolo_backbone/fp16_640.json",
+    "../cases/L3/yolo_backbone/nms_deterministic.json",
+    "../cases/L3/yolo_backbone/trap.json",
+    "../cases/L3/unet/fp32_basic.json",
+    "../cases/L3/unet/fp32_with_bn.json",
+    "../cases/L3/unet/3ch_output.json",
+    "../cases/L3/unet/deep.json",
+    "../cases/L3/resnet18/frozen_bn_eval.json",
+    "../cases/L3/vit_tiny/rope_attention.json",
+    "../cases/L3/mobilenetv2/wide.json",
+    "../cases/L3/yolo_backbone/focus_slicing.json",
+    "../cases/L3/unet/bilinear_upsample.json"
+  ],
+  "adapters": [
+    "../../../examples/adapters/noop.json"
+  ]
+}

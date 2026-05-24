@@ -18,6 +18,25 @@ pytest -q
 
 默认安装不会拉取 PyTorch、MindSpore、JAX、CANN 或具体迁移库。请按目标评测环境自行安装这些框架和厂商依赖。
 
+## TorchBridgeBench 基准镜像
+
+当前仓库也镜像了来自 `ClaudeCodePluginDesign.md` 的静态
+TorchBridgeBench benchmark core 与基准库：
+
+```bash
+python scripts/generate_benchmark_library.py
+python scripts/tbbcc.py eval-suite \
+  --suite benchmarks/v1.0.0/suites/dev_noop.json \
+  --out reports_tbbcc_dev
+python scripts/tbbcc.py eval-suite \
+  --suite benchmarks/v1.0.0/suites/smoke_noop.json \
+  --out reports_tbbcc_smoke
+```
+
+如需全量生成矩阵，可改用 `benchmarks/v1.0.0/suites/all_noop.json`。
+其中 `dev_noop.json` 适合日常流程快检，`smoke_noop.json` 保留了 L3/L4
+覆盖，因此会明显更慢。
+
 ## LLM 配置（API 密钥、模型、Base URL）
 
 只有在**不使用** `--adapter-file`、需要让工具从文档抽取 `AdapterSpec` 时，才需配置以下项（适用于 `extract` 与 `run`）。使用 `--adapter-file` 时会直接读取手写 adapter，不会调用 LLM。
@@ -98,6 +117,9 @@ eval-migration run `
 # 查看帮助
 eval-migration --help
 
+# 查看镜像后的 TorchBridgeBench core 帮助
+python scripts/tbbcc.py --help
+
 # 探测本机硬件（可交互确认）
 eval-migration probe
 
@@ -110,6 +132,32 @@ eval-migration run --adapter-file examples/torchax_adapter.json --suite all --ye
 # 从远程 README 抽取并运行（需要 OPENAI_API_KEY）
 eval-migration run --readme-url https://raw.githubusercontent.com/google/torchax/main/README.md --suite smoke --yes
 ```
+
+## Agent 工作流
+
+Agent 模式会在基础测试套件结束后处理失败用例，分三层：
+
+- `--agent-mode diagnose`：调用 LLM 诊断失败类别，并判断是否计入迁移兼容性。
+- `--agent-mode revalidate`：先诊断，再执行白名单复验动作，例如子进程重跑同一用例、关闭 adapter 重跑、按 adapter 设备重跑。
+- `--agent-mode repair`：先诊断和复验，再尝试修复 AdapterSpec 并重跑失败用例。当前修复层只生成 adapter JSON 变更，不直接修改迁移库源码。
+
+示例：
+
+```bash
+source /home/ma-user/work/load_deepseek_agent_env.sh
+
+eval-migration run \
+  --adapter-file examples/torch4ms_adapter.json \
+  --suite smoke \
+  --single-process \
+  --yes \
+  --agent-mode revalidate \
+  --agent-max-failures 5
+```
+
+报告中的 `agent_report` 会记录诊断证据、复验结果、修复尝试、迁移代价统计（ME 所需的 LLM 调用、重跑次数、patch diff 行数等）、`AR` 和 `migrate@k`。
+
+详细教程见：[docs/AGENT_USAGE.zh-CN.md](docs/AGENT_USAGE.zh-CN.md)。
 
 ### 使用 LLM + 本地仓库跑全量测试示例
 

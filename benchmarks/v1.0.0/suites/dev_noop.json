@@ -1,0 +1,10 @@
+{
+  "suite_id": "dev_noop",
+  "cases": [
+    "../cases/L1/tensor/reshape.json",
+    "../cases/L1/attn/matmul.json"
+  ],
+  "adapters": [
+    "../../../examples/adapters/noop.json"
+  ]
+}

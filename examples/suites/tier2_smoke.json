@@ -1,0 +1,10 @@
+{
+  "suite_id": "tier2-smoke",
+  "cases": [
+    "../cases/tier2_activation_probe.json"
+  ],
+  "adapters": [
+    "../adapters/noop.json",
+    "../adapters/numeric-drift.json"
+  ]
+}

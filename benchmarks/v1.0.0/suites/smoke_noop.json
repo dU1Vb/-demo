@@ -1,0 +1,12 @@
+{
+  "suite_id": "smoke_noop",
+  "cases": [
+    "../cases/L1/conv/conv2d_fp32.json",
+    "../cases/L2/cnn/conv_bn_relu_64ch.json",
+    "../cases/L3/mobilenetv2/narrow.json",
+    "../cases/L4/short/unet_adam_2step.json"
+  ],
+  "adapters": [
+    "../../../examples/adapters/noop.json"
+  ]
+}

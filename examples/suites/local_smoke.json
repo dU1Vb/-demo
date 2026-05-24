@@ -1,0 +1,11 @@
+{
+  "suite_id": "local-smoke",
+  "cases": [
+    "../cases/pure_python_vector.json",
+    "../cases/scale_sensitive_vector.json"
+  ],
+  "adapters": [
+    "../adapters/noop.json",
+    "../adapters/numeric-drift.json"
+  ]
+}

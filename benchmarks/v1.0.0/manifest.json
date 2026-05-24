@@ -1,0 +1,23 @@
+{
+  "schema_version": "tbbcc.benchmark.v0.1",
+  "benchmark_id": "bench_v1.0.0",
+  "generator": "scripts/generate_benchmark_library.py",
+  "totals": {
+    "total_cases": 175,
+    "by_level": {
+      "L1": 67,
+      "L2": 42,
+      "L3": 25,
+      "L4": 41
+    }
+  },
+  "suites": {
+    "all": "suites/all_noop.json",
+    "dev": "suites/dev_noop.json",
+    "L1": "suites/l1_noop.json",
+    "L2": "suites/l2_noop.json",
+    "L3": "suites/l3_noop.json",
+    "L4": "suites/l4_noop.json",
+    "smoke": "suites/smoke_noop.json"
+  }
+}

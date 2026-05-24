@@ -1,0 +1,15 @@
+{
+  "id": "bench/local/torch-scaled-matmul",
+  "level": "L2",
+  "track": "both",
+  "code": "import torch\ndef run():\n    torch.manual_seed(0)\n    scale = globals().get('BRIDGE_SCALE', 1.0)\n    x = torch.tensor([[1.0, 2.0], [3.0, 4.0]], dtype=torch.float32)\n    w = torch.tensor([[0.5, -1.0], [2.0, 0.25]], dtype=torch.float32)\n    return torch.matmul(x, w) * scale",
+  "expected_ops": ["torch.tensor", "torch.matmul"],
+  "ground_truth": {
+    "atol": 1e-6,
+    "rtol": 1e-6,
+    "rationale": "Small deterministic PyTorch tensor smoke test."
+  },
+  "difficulty": "basic",
+  "failure_mode": "known_correct",
+  "seed": 0
+}

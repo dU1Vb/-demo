@@ -1,0 +1,10 @@
+{
+  "suite_id": "torch-smoke",
+  "cases": [
+    "../cases/torch_scaled_matmul.json"
+  ],
+  "adapters": [
+    "../adapters/noop.json",
+    "../adapters/numeric-drift.json"
+  ]
+}

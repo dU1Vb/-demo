@@ -1,0 +1,15 @@
+{
+  "id": "bench/local/pure-python-vector",
+  "level": "L1",
+  "track": "both",
+  "code": "values = [1.0, 2.0, 3.0]\nRESULT = [x * x + 0.5 for x in values]",
+  "expected_ops": ["python:list-comprehension"],
+  "ground_truth": {
+    "atol": 1e-9,
+    "rtol": 1e-9,
+    "rationale": "Pure Python deterministic smoke test."
+  },
+  "difficulty": "basic",
+  "failure_mode": "known_correct",
+  "seed": 42
+}
