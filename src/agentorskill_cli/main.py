@@ -11,9 +11,11 @@ from rich.console import Console
 from rich.table import Table
 
 from agentorskill_cli.adapter_schema import AdapterSpec, validate_adapter_dict
+from agentorskill_cli.agent_loop import run_agent_loop
 from agentorskill_cli.doc_reader import collect_docs
 from agentorskill_cli.hardware_probe import format_hardware_summary, probe_hardware, user_confirms
 from agentorskill_cli.llm_adapter import extract_adapter_with_llm
+from agentorskill_cli.metrics import compute_evaluation_summary
 from agentorskill_cli.report import build_report_payload, write_reports
 from agentorskill_cli.test_suites.runner import (
     execute_plan,
@@ -27,6 +29,21 @@ app = typer.Typer(
     no_args_is_help=True,
 )
 console = Console()
+
+
+def _has_unresolved_failures(summary) -> bool:
+    for suite in summary.suites.values():
+        if suite.skipped:
+            continue
+        for case in suite.cases:
+            if case.ok or case.skipped:
+                continue
+            if not case.counts_toward_adaptation:
+                continue
+            if case.details.get("agent_successful_repair"):
+                continue
+            return True
+    return False
 
 
 @app.command("probe")
@@ -152,6 +169,21 @@ def cmd_run(
             "Numeric and benchmark suites fall back to subprocess mode.",
         ),
     ] = False,
+    agent_mode: Annotated[
+        str,
+        typer.Option(
+            "--agent-mode",
+            help="off|diagnose|revalidate|repair. Agent stages run after baseline failures.",
+        ),
+    ] = "off",
+    agent_max_failures: Annotated[
+        int,
+        typer.Option("--agent-max-failures", help="Maximum failed cases for agent processing."),
+    ] = 5,
+    agent_repair_attempts: Annotated[
+        int,
+        typer.Option("--agent-repair-attempts", help="Adapter repair attempts per failed case in repair mode."),
+    ] = 1,
 ) -> None:
     """Probe hardware, load/extract adapter, run suite(s), write reports."""
     if not no_probe:
@@ -180,6 +212,24 @@ def cmd_run(
         atol=numeric_atol,
     )
 
+    if agent_mode.lower().strip() != "off":
+        agent_report = run_agent_loop(
+            adapter=spec,
+            summary=summ,
+            mode=agent_mode,
+            model=model,
+            base_url=base_url,
+            max_failures=agent_max_failures,
+            repair_attempts=agent_repair_attempts,
+            honor_device=honor_adapter_device,
+        )
+        summ.agent_report = agent_report.model_dump(mode="json")
+        summ.evaluation_summary = compute_evaluation_summary(
+            summ,
+            adaptation_suites=parse_adaptation_suites_arg(adaptation_suites),
+            include_smoke_in_adaptation=include_smoke_in_adaptation,
+        )
+
     payload = build_report_payload(
         adapter=spec,
         hardware=hw,
@@ -206,7 +256,7 @@ def cmd_run(
         else:
             table.add_row(name, str(sr.passed), str(sr.failed), str(sr.skipped_n))
     console.print(table)
-    if summ.suites and any(not v.skipped and v.failed for v in summ.suites.values()):
+    if _has_unresolved_failures(summ):
         raise typer.Exit(1)
 
 

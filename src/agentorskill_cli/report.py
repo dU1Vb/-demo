@@ -24,6 +24,8 @@ def case_to_dict(c: EvalCaseResult) -> dict[str, Any]:
         "ok": c.ok,
         "skipped": c.skipped,
         "category": c.category,
+        "weight": c.weight,
+        "counts_toward_adaptation": c.counts_toward_adaptation,
         "duration_s": c.duration_s,
         "error": c.error,
         "details": c.details,
@@ -56,6 +58,7 @@ def build_report_payload(
         "evaluation_summary": summary.evaluation_summary,
         "numeric_delta": summary.numeric_delta,
         "numeric_fidelity": summary.numeric_fidelity,
+        "agent_report": summary.agent_report,
         "smoke_failed": summary.smoke_failed,
         "suites": {k: suite_to_dict(v) for k, v in summary.suites.items()},
     }
@@ -80,6 +83,7 @@ def write_reports(
 
     es = payload.get("evaluation_summary") or {}
     nf = payload.get("numeric_fidelity") or {}
+    agent = payload.get("agent_report") or {}
 
     lines: list[str] = [
         f"# Migration library evaluation: {library_name}",
@@ -115,6 +119,12 @@ def write_reports(
         "",
         "```",
         json.dumps(payload.get("numeric_delta", {}), indent=2, ensure_ascii=False),
+        "```",
+        "",
+        "## Agent report",
+        "",
+        "```json",
+        json.dumps(agent, indent=2, ensure_ascii=False)[:20000],
         "```",
         "",
         "## Hardware",

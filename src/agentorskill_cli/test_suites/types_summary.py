@@ -25,3 +25,4 @@ class RunSummary:
     numeric_fidelity: dict[str, Any] = field(default_factory=dict)
     smoke_failed: bool = False
     evaluation_summary: dict[str, Any] = field(default_factory=dict)
+    agent_report: dict[str, Any] = field(default_factory=dict)
