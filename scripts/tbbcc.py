@@ -923,6 +923,10 @@ def render_markdown(report: dict[str, Any]) -> str:
 
 def render_suite_markdown(summary: dict[str, Any]) -> str:
     totals = summary["totals"]
+    compatibility_rate = totals.get("compatibility_rate")
+    raw_pass_rate = totals.get("raw_pass_rate")
+    compatibility_text = "n/a" if compatibility_rate is None else f"{compatibility_rate:.4f}"
+    raw_pass_text = "n/a" if raw_pass_rate is None else f"{raw_pass_rate:.4f}"
     lines = [
         "# TorchBridgeBench Suite Summary",
         "",
@@ -930,22 +934,45 @@ def render_suite_markdown(summary: dict[str, Any]) -> str:
         f"- Total runs: `{totals['total']}`",
         f"- Passed: `{totals['passed']}`",
         f"- Failed: `{totals['failed']}`",
-        f"- Compatibility rate: `{totals['compatibility_rate']:.4f}`",
+        f"- Compatibility-counted runs: `{totals.get('compatibility_counted_total')}`",
+        f"- Compatibility-counted passes: `{totals.get('compatibility_counted_passed')}`",
+        f"- Compatibility rate: `{compatibility_text}`",
+        f"- Raw pass rate: `{raw_pass_text}`",
         f"- Total duration seconds: `{totals.get('duration_seconds')}`",
         "",
-        "## Failure Classes",
+        "## Executive Summary",
         "",
     ]
+    if compatibility_rate is None:
+        lines.append("- No runs counted toward compatibility; review environment failures first.")
+    else:
+        lines.append(
+            f"- Compatibility is measured after excluding environment/config-only failures; current rate is `{compatibility_text}`."
+        )
+    if summary["failure_classes"]:
+        top_failure = sorted(summary["failure_classes"].items(), key=lambda item: (-item[1], item[0]))[0]
+        lines.append(f"- Most frequent failure class: `{top_failure[0]}` x `{top_failure[1]}`.")
+    else:
+        lines.append("- No failure classes were recorded.")
+    lines.extend(
+        [
+            "",
+            "## Failure Classes",
+            "",
+        ]
+    )
     if summary["failure_classes"]:
         for name, count in sorted(summary["failure_classes"].items()):
             lines.append(f"- {name}: `{count}`")
     else:
         lines.append("- none")
-    lines.extend(["", "## Runs", ""])
+    lines.extend(["", "## Run Details", ""])
     for item in summary["runs"]:
+        counted = item.get("counts_toward_compatibility")
+        counted_text = "yes" if counted else "no"
         lines.append(
             f"- `{item['case_id']}` x `{item['bridge_id']}`: "
-            f"`{item['final_state']}` / `{item['failure_class']}` "
+            f"`{item['final_state']}` / `{item['failure_class']}` / counted=`{counted_text}` / duration=`{item.get('duration_seconds')}` "
             f"([json]({item['report_json']}), [md]({item['report_md']}))"
         )
     lines.append("")
@@ -1018,6 +1045,8 @@ def cmd_eval_suite(args: argparse.Namespace) -> int:
     failure_classes: dict[str, int] = {}
     passed = 0
     failed = 0
+    compatibility_total = 0
+    compatibility_passed = 0
     for case_item in cases:
         case_path = _resolve_path(base, str(case_item))
         case_obj = load_case(case_path)
@@ -1035,12 +1064,17 @@ def cmd_eval_suite(args: argparse.Namespace) -> int:
             )
             paths = report.pop("_paths")
             cls = report["tiers"]["T1"]["auto_classification"]["class"]
+            counts_toward_compatibility = report["tiers"]["T1"]["auto_classification"]["counts_toward_compatibility"]
             run_duration = report.get("timing", {}).get("wall_clock_seconds")
             if report["final_state"] == "ALL_PASS":
                 passed += 1
+                if counts_toward_compatibility:
+                    compatibility_passed += 1
             else:
                 failed += 1
                 failure_classes[cls] = failure_classes.get(cls, 0) + 1
+            if counts_toward_compatibility:
+                compatibility_total += 1
             runs.append(
                 {
                     "case_id": case_obj.id,
@@ -1051,7 +1085,7 @@ def cmd_eval_suite(args: argparse.Namespace) -> int:
                     "failure_class": cls,
                     "report_json": paths["report_json"],
                     "report_md": paths["report_md"],
-                    "counts_toward_compatibility": report["tiers"]["T1"]["auto_classification"]["counts_toward_compatibility"],
+                    "counts_toward_compatibility": counts_toward_compatibility,
                     "duration_seconds": run_duration,
                 }
             )
@@ -1066,7 +1100,10 @@ def cmd_eval_suite(args: argparse.Namespace) -> int:
             "total": total,
             "passed": passed,
             "failed": failed,
-            "compatibility_rate": (passed / total) if total else 0.0,
+            "compatibility_counted_total": compatibility_total,
+            "compatibility_counted_passed": compatibility_passed,
+            "compatibility_rate": (compatibility_passed / compatibility_total) if compatibility_total else None,
+            "raw_pass_rate": (passed / total) if total else 0.0,
             "duration_seconds": suite_duration,
         },
         "failure_classes": failure_classes,

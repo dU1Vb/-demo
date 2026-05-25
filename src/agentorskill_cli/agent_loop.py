@@ -14,6 +14,7 @@ from agentorskill_cli.adapter_schema import AdapterSpec, adapter_spec_to_dict, v
 from agentorskill_cli.agent_schema import (
     AgentRunReport,
     DiagnosticDecision,
+    EnvironmentIssue,
     MigrationEffortStats,
     RepairAttempt,
     RepairMetrics,
@@ -26,6 +27,7 @@ from agentorskill_cli.test_suites.runner import SUITE_MAP, execute_plan
 from agentorskill_cli.test_suites.types_summary import RunSummary
 
 AGENT_TEMPERATURE = 0.1
+ENVIRONMENT_FAILURE_CLASSES = {"EnvironmentFailure", "DependencyMissing", "ImportOrderError"}
 
 
 DIAGNOSTIC_SYSTEM_PROMPT = """You are a diagnostic agent for PyTorch-to-MindSpore migration evaluation.
@@ -152,7 +154,6 @@ def _diagnose_with_llm(
     adapter: AdapterSpec,
     suite_name: str,
     case: EvalCaseResult,
-    effort: MigrationEffortStats,
 ) -> tuple[DiagnosticDecision, dict[str, Any]]:
     user_prompt = json.dumps(
         {
@@ -168,10 +169,6 @@ def _diagnose_with_llm(
         user_prompt=user_prompt,
         temperature=AGENT_TEMPERATURE,
     )
-    effort.llm_calls += 1
-    effort.agent_rounds += 1
-    effort.prompt_chars += resp.prompt_chars
-    effort.completion_chars += resp.completion_chars
     payload = dict(resp.data)
     payload["suite"] = suite_name
     payload["case_id"] = case.case_id
@@ -369,6 +366,48 @@ def _repair_case(
     )
 
 
+def _suggest_user_actions(diag: DiagnosticDecision, case: EvalCaseResult) -> list[str]:
+    text = " ".join(
+        [
+            str(case.error or ""),
+            str(case.stderr or ""),
+            json.dumps(case.details, ensure_ascii=False, default=str),
+        ]
+    ).lower()
+
+    actions: list[str] = []
+    if diag.failure_class == "DependencyMissing":
+        actions.append("Install the missing dependency in the evaluation environment and rerun the failed suite.")
+    elif diag.failure_class == "ImportOrderError":
+        actions.append("Adjust import order or adapter preamble initialization sequence, then rerun the failed suite.")
+    elif diag.failure_class == "EnvironmentFailure":
+        actions.append("Verify the base Python/runtime environment before evaluating bridge compatibility.")
+
+    if "cuda" in text or "npu" in text or "ascend" in text:
+        actions.append("Check device runtime availability, drivers, and backend initialization on the target machine.")
+    if not actions:
+        actions.append("Inspect the captured error and environment configuration, then rerun the failed case.")
+    return actions
+
+
+def _environment_issue_from_case(
+    suite_name: str,
+    case: EvalCaseResult,
+    diag: DiagnosticDecision,
+    actions: list[RevalidationAction],
+) -> EnvironmentIssue:
+    return EnvironmentIssue(
+        suite=suite_name,
+        case_id=case.case_id,
+        failure_class=diag.failure_class,
+        resolved=False,
+        attempted_actions=[a.action for a in actions],
+        evidence=list(diag.evidence),
+        suggested_user_actions=_suggest_user_actions(diag, case),
+        final_error=case.error,
+    )
+
+
 def _compute_repair_metrics(attempts: list[RepairAttempt], max_attempts: int) -> RepairMetrics:
     by_case: dict[tuple[str, str], list[RepairAttempt]] = {}
     for attempt in attempts:
@@ -389,10 +428,12 @@ def _compute_repair_metrics(attempts: list[RepairAttempt], max_attempts: int) ->
         else:
             migrate_at_k[f"migrate@{k}"] = sum(1 for idx in success_attempt_by_case.values() if idx <= k) / attempted_cases
 
+    repair_rate = (successful / attempted_cases) if attempted_cases else None
     return RepairMetrics(
         attempted_cases=attempted_cases,
         successful_repairs=successful,
-        AR=(successful / attempted_cases) if attempted_cases else None,
+        repair_success_rate=repair_rate,
+        AR=None,
         migrate_at_k=migrate_at_k,
     )
 
@@ -423,13 +464,44 @@ def run_agent_loop(
         report.migration_effort.elapsed_s = time.perf_counter() - t0
         return report
 
-    provider = OpenAIChatProvider(model=model, base_url=base_url)
+    try:
+        provider = OpenAIChatProvider(model=model, base_url=base_url)
+    except RuntimeError as exc:
+        report.diagnostics.append(
+            DiagnosticDecision(
+                suite="agent",
+                case_id="agent_mode_bootstrap",
+                failure_class="EnvironmentFailure",
+                evidence=[str(exc)],
+                is_environment_or_config=True,
+                counts_toward_compatibility=False,
+                suggested_revalidation=[],
+                recommended_next_step="Set OPENAI_API_KEY or rerun with --agent-mode off.",
+            )
+        )
+        report.environment_issues.append(
+            EnvironmentIssue(
+                suite="agent",
+                case_id="agent_mode_bootstrap",
+                failure_class="EnvironmentFailure",
+                resolved=False,
+                attempted_actions=[],
+                evidence=[str(exc)],
+                suggested_user_actions=[
+                    "Set OPENAI_API_KEY before enabling agent mode, or rerun with --agent-mode off.",
+                ],
+                final_error=str(exc),
+            )
+        )
+        report.migration_effort.elapsed_s = time.perf_counter() - t0
+        return report
     report.provider = provider.provider
     report.protocol = provider.protocol
     report.model = provider.model
     report.temperature = AGENT_TEMPERATURE
 
     diagnostic_by_case: dict[tuple[str, str], DiagnosticDecision] = {}
+    environment_cases: set[tuple[str, str]] = set()
 
     for suite_name, case in failed:
         try:
@@ -438,7 +510,6 @@ def run_agent_loop(
                 adapter=adapter,
                 suite_name=suite_name,
                 case=case,
-                effort=effort,
             )
             report.provider = provider_meta["provider"]
             report.protocol = provider_meta["protocol"]
@@ -452,6 +523,15 @@ def run_agent_loop(
         if not diag.counts_toward_compatibility:
             case.counts_toward_adaptation = False
             case.details["agent_outcome"] = "excluded_from_compatibility"
+            environment_cases.add((suite_name, case.case_id))
+            report.environment_issues.append(
+                _environment_issue_from_case(
+                    suite_name,
+                    case,
+                    diag,
+                    diag.suggested_revalidation,
+                )
+            )
 
     if mode in {"revalidate", "repair"}:
         for suite_name, case in failed:
@@ -459,6 +539,7 @@ def run_agent_loop(
             actions = diag.suggested_revalidation or [
                 RevalidationAction(action="rerun_same_case_subprocess", reason="Default stability check.")
             ]
+            is_environment_case = (suite_name, case.case_id) in environment_cases
             for action in actions[:3]:
                 rv = _run_revalidation_action(
                     adapter=adapter,
@@ -467,7 +548,8 @@ def run_agent_loop(
                     action=action,
                     honor_device=honor_device,
                 )
-                effort.revalidation_runs += 1
+                if not is_environment_case:
+                    effort.revalidation_runs += 1
                 report.revalidations.append(rv)
                 report.tool_calls.append(
                     {
@@ -483,7 +565,16 @@ def run_agent_loop(
                     case.counts_toward_adaptation = False
                     case.details["agent_outcome"] = "excluded_after_revalidation"
                     case.details["agent_revalidation_conclusion"] = rv.model_dump(mode="json")
+                    if is_environment_case:
+                        for issue in report.environment_issues:
+                            if issue.suite == suite_name and issue.case_id == case.case_id:
+                                issue.resolved = True
+                                issue.final_error = None
                     break
+            if is_environment_case:
+                for issue in report.environment_issues:
+                    if issue.suite == suite_name and issue.case_id == case.case_id and not issue.resolved:
+                        issue.final_error = case.error
 
     if mode == "repair":
         attempts_n = max(1, repair_attempts)

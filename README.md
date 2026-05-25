@@ -117,6 +117,12 @@ Numeric fidelity fields (`numeric_fidelity` in the report) include `within_toler
 # Show help
 eval-migration --help
 
+# Recommended one-command evaluation: generate/load adapter, run tests, write focused reports
+eval-migration eval --bridge-id torch4ms --docs /path/to/torch4ms/README.md --suite smoke --out reports/torch4ms_eval --yes
+
+# Reproduce with an existing adapter while keeping the same report layout
+eval-migration eval --adapter-file examples/torchax_adapter.json --suite all --out reports/torchax_eval --yes
+
 # Show the mirrored TorchBridgeBench core help
 python scripts/tbbcc.py --help
 
@@ -132,6 +138,18 @@ eval-migration run --adapter-file examples/torchax_adapter.json --suite all --ye
 # Extract adapter from docs + run (requires OPENAI_API_KEY)
 eval-migration run --readme-url https://raw.githubusercontent.com/google/torchax/main/README.md --suite smoke --yes
 ```
+
+`eval-migration eval` is the scriptable counterpart to the Claude Code plugin
+`/eval` command. It writes:
+
+- `adapter.generated.json`
+- `effort_ledger.json`
+- `summary.md`
+- `summary.json`
+- full timestamped reports under the output directory
+
+The top of `summary.md` is a paper-ready metric card with compatibility,
+first-pass rate, ME, AR, effort split, numeric fidelity and performance.
 
 ## Agent workflow
 
@@ -156,6 +174,8 @@ eval-migration run \
 ```
 
 Reports include `agent_report` with diagnostic evidence, revalidation results, repair attempts, migration-effort stats (`ME` inputs such as LLM calls, re-runs and patch diff lines), `AR`, and `migrate@k`.
+
+`AR` here means `1 - (ME / baseline_effort)`, where `baseline_effort` is calibrated by repeated full translation rerolls over a benchmark task set. Use `eval-migration calibrate-ar --task-file examples/ar_baseline_tasks.json` to generate the constant file, then pass it to `eval-migration run --ar-constant-file ...`.
 
 See the detailed Chinese guide: [docs/AGENT_USAGE.zh-CN.md](docs/AGENT_USAGE.zh-CN.md).
 

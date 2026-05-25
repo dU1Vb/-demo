@@ -88,8 +88,26 @@ class MigrationEffortStats(BaseModel):
 class RepairMetrics(BaseModel):
     attempted_cases: int = 0
     successful_repairs: int = 0
+    repair_success_rate: float | None = None
     AR: float | None = None
+    baseline_effort: float | None = None
+    effort_total: float | None = None
+    ar_constant_model: str | None = None
+    ar_agent_system_version: str | None = None
+    ar_constant_compatible: bool | None = None
+    ar_constant_issues: list[str] = Field(default_factory=list)
     migrate_at_k: dict[str, float | None] = Field(default_factory=dict)
+
+
+class EnvironmentIssue(BaseModel):
+    suite: str
+    case_id: str
+    failure_class: FailureClass
+    resolved: bool = False
+    attempted_actions: list[RevalidationActionName] = Field(default_factory=list)
+    evidence: list[str] = Field(default_factory=list)
+    suggested_user_actions: list[str] = Field(default_factory=list)
+    final_error: str | None = None
 
 
 class AgentRunReport(BaseModel):
@@ -103,5 +121,6 @@ class AgentRunReport(BaseModel):
     diagnostics: list[DiagnosticDecision] = Field(default_factory=list)
     revalidations: list[RevalidationResult] = Field(default_factory=list)
     repair_attempts: list[RepairAttempt] = Field(default_factory=list)
+    environment_issues: list[EnvironmentIssue] = Field(default_factory=list)
     migration_effort: MigrationEffortStats = Field(default_factory=MigrationEffortStats)
     repair_metrics: RepairMetrics = Field(default_factory=RepairMetrics)

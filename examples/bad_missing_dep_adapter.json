@@ -1,0 +1,17 @@
+{
+  "library_name": "bad_missing_dep_adapter",
+  "install": {
+    "commands": [],
+    "pip_packages": [],
+    "notes": "Intentional negative control: preamble imports a missing package."
+  },
+  "enable": {
+    "preamble": "import definitely_missing_package_xyz\n",
+    "import_order_note": "Intentional bad adapter for environment-failure experiments."
+  },
+  "device": {
+    "target_device": "cpu"
+  },
+  "constraints": [],
+  "examples": []
+}

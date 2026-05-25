@@ -42,6 +42,12 @@ def _allclose_vecs(a: list[float], b: list[float], rtol: float, atol: float) -> 
     return True
 
 
+def _safe_rate(numerator: float, denominator: float) -> float | None:
+    if denominator <= 0:
+        return None
+    return numerator / denominator
+
+
 def run_numeric_aggregate(
     adapter: AdapterSpec,
     *,
@@ -94,6 +100,46 @@ def run_numeric_aggregate(
         delta["reason"] = "missing baseline or adapter vectors"
 
     return sr, delta, fidelity
+
+
+def summarize_benchmark_suite(sr: SuiteRun) -> dict[str, Any]:
+    per_case: dict[str, Any] = {}
+    total_wall = 0.0
+    total_iters = 0
+
+    for case in sr.cases:
+        if case.skipped or not case.ok:
+            continue
+        details = case.details or {}
+        iters = details.get("iters")
+        total_s = details.get("total_s")
+        if not isinstance(iters, int) or iters <= 0:
+            continue
+        if not isinstance(total_s, (int, float)) or total_s <= 0:
+            continue
+        latency_s = total_s / iters
+        throughput = iters / total_s
+        per_case[case.case_id] = {
+            "iters": iters,
+            "total_s": float(total_s),
+            "latency_s": latency_s,
+            "throughput_iter_s": throughput,
+            "harness_duration_s": case.duration_s,
+        }
+        total_wall += float(total_s)
+        total_iters += iters
+
+    aggregate = {
+        "successful_cases": len(per_case),
+        "total_iters": total_iters,
+        "total_s": total_wall,
+        "throughput_iter_s": _safe_rate(total_iters, total_wall),
+        "mean_latency_s": _safe_rate(total_wall, total_iters),
+    }
+    return {
+        "per_case": per_case,
+        "aggregate": aggregate,
+    }
 
 
 def run_cases(
@@ -175,6 +221,8 @@ def execute_plan(
 
         sr = run_cases(sn, adapter, cases, honor_device=honor_device)
         summary.suites[sn] = sr
+        if sn == "benchmark":
+            summary.benchmark_summary = summarize_benchmark_suite(sr)
         if sn == "smoke" and sr.failed > 0:
             summary.smoke_failed = True
 
@@ -204,7 +252,21 @@ def execute_plan_inprocess(
     atol: float = DEFAULT_ATOL,
 ) -> RunSummary:
     """Execute suites in a single process — preamble runs once, all tests share state."""
-    preamble_ns = execute_preamble(adapter, honor_device=honor_device)
+    try:
+        preamble_ns = execute_preamble(adapter, honor_device=honor_device)
+    except Exception:
+        # If the adapter preamble itself is broken, fall back to subprocess mode so
+        # the failure is captured as case-level evidence and can enter agent flows.
+        return execute_plan(
+            adapter,
+            suite,
+            skip_benchmark_if_smoke_fails=skip_benchmark_if_smoke_fails,
+            honor_device=honor_device,
+            adaptation_suites=adaptation_suites,
+            include_smoke_in_adaptation=include_smoke_in_adaptation,
+            rtol=rtol,
+            atol=atol,
+        )
 
     summary = RunSummary()
     name = suite.lower().strip()
@@ -243,6 +305,8 @@ def execute_plan_inprocess(
 
             sr = run_cases(sn, adapter, cases, honor_device=honor_device)
             summary.suites[sn] = sr
+            if sn == "benchmark":
+                summary.benchmark_summary = summarize_benchmark_suite(sr)
             continue
 
         # In-process suites: smoke, core, models, training

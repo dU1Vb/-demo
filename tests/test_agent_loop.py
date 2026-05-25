@@ -5,7 +5,10 @@ from __future__ import annotations
 import pytest
 
 from agentorskill_cli.adapter_schema import validate_adapter_dict
+from agentorskill_cli.ar_calibration import measure_baseline_effort
 from agentorskill_cli.agent_loop import run_agent_loop
+from agentorskill_cli.agent_schema import MigrationEffortStats
+from agentorskill_cli.effort import calc_ar, calc_effort_from_stats
 from agentorskill_cli.main import _has_unresolved_failures
 from agentorskill_cli.llm_provider import LLMJsonResponse
 from agentorskill_cli.test_suites.harness import EvalCaseResult
@@ -100,6 +103,27 @@ class _RepairProvider(_FakeProvider):
         return resp
 
 
+class _TranslationProvider:
+    provider = "fake"
+    protocol = "chat_completions"
+    model = "fake-model"
+
+    def complete_text(self, *, system_prompt: str, user_prompt: str, temperature: float = 0.1):
+        text = "import mindspore as ms\n"
+        return type(
+            "Resp",
+            (),
+            {
+                "text": text,
+                "model": self.model,
+                "provider": self.provider,
+                "protocol": self.protocol,
+                "prompt_chars": len(system_prompt) + len(user_prompt),
+                "completion_chars": len(text),
+            },
+        )()
+
+
 def test_agent_no_failures_does_not_require_api_key(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
     summary = RunSummary(suites={"smoke": SuiteRun(name="smoke", passed=1)})
@@ -116,7 +140,9 @@ def test_agent_diagnose_marks_environment_failure(monkeypatch: pytest.MonkeyPatc
     assert report.diagnostics[0].failure_class == "DependencyMissing"
     assert report.diagnostics[0].counts_toward_compatibility is False
     assert case.counts_toward_adaptation is False
-    assert report.migration_effort.llm_calls == 1
+    assert report.environment_issues[0].resolved is False
+    assert report.environment_issues[0].failure_class == "DependencyMissing"
+    assert report.migration_effort.llm_calls == 0
     assert _has_unresolved_failures(summary) is False
 
 
@@ -132,7 +158,58 @@ def test_agent_repair_tracks_ar_and_migrate_at_k(monkeypatch: pytest.MonkeyPatch
     )
     assert report.repair_metrics.attempted_cases == 1
     assert report.repair_metrics.successful_repairs == 1
-    assert report.repair_metrics.AR == pytest.approx(1.0)
+    assert report.repair_metrics.AR is None
     assert report.repair_metrics.migrate_at_k["migrate@1"] == pytest.approx(1.0)
     assert report.migration_effort.repair_attempts == 1
     assert _has_unresolved_failures(summary) is False
+
+
+def test_environment_revalidation_does_not_count_toward_effort(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr("agentorskill_cli.agent_loop.OpenAIChatProvider", _FakeProvider)
+    summary, _ = _failed_summary()
+    report = run_agent_loop(adapter=_adapter(), summary=summary, mode="revalidate")
+    assert report.environment_issues
+    assert report.migration_effort.revalidation_runs == 0
+
+
+def test_repair_metrics_exposes_success_rate_and_ar(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr("agentorskill_cli.agent_loop.OpenAIChatProvider", _RepairProvider)
+    summary, _ = _failed_summary("smoke_import_torch")
+    report = run_agent_loop(
+        adapter=_bad_adapter(),
+        summary=summary,
+        mode="repair",
+        repair_attempts=1,
+    )
+    assert report.repair_metrics.repair_success_rate == pytest.approx(1.0)
+    assert report.repair_metrics.AR is None
+
+
+def test_baseline_effort_is_measured_per_reroll() -> None:
+    result = measure_baseline_effort(
+        provider=_TranslationProvider(),
+        task_cases=[
+            {"case_id": "a", "code": "print('a')"},
+            {"case_id": "b", "code": "print('b')"},
+        ],
+        rerolls=2,
+        max_cv=1.0,
+    )
+    assert result.rerolls[0].case_count == 2
+    assert len(result.rerolls) == 2
+    assert result.baseline_effort == pytest.approx(result.rerolls[0].total_effort)
+
+
+def test_ar_formula_uses_shared_effort_helper() -> None:
+    stats = MigrationEffortStats(
+        llm_calls=2,
+        revalidation_runs=1,
+        repair_attempts=3,
+        prompt_chars=10,
+        completion_chars=5,
+        patch_lines_added=2,
+        patch_lines_deleted=1,
+    )
+    me = calc_effort_from_stats(stats)
+    assert me == pytest.approx(6.018)
+    assert calc_ar(me, 12.0) == pytest.approx(0.4985)

@@ -71,6 +71,22 @@ source /home/ma-user/work/load_deepseek_agent_env.sh
 eval-migration run --help
 ```
 
+推荐使用新的主入口，它与 Claude Code 插件 `/eval` 对齐：
+
+```bash
+eval-migration eval \
+  --bridge-id torch4ms \
+  --docs /path/to/torch4ms/README.md \
+  --suite smoke \
+  --out reports_torch4ms_eval \
+  --yes \
+  --agent-mode revalidate
+```
+
+这个命令会先生成 `adapter.generated.json` 和 `effort_ledger.json`，再运行测试，
+最后输出 `summary.md` / `summary.json`。首页指标卡会集中展示兼容率、首次通过率、
+ME、AR、数值一致性和性能指标。
+
 不用 Agent 的普通测试：
 
 ```bash
@@ -242,9 +258,18 @@ elapsed_s
 ```text
 attempted_cases
 successful_repairs
+repair_success_rate
 AR
+baseline_effort
+effort_total
 migrate_at_k
 ```
+
+其中：
+
+- `repair_success_rate` 是修复成功率
+- `AR` 是 `1 - (ME / baseline_effort)`
+- `baseline_effort` 需要通过 `calibrate-ar` 对“无桥接器、纯翻译”任务做多次 reroll 校准得到
 
 ## 8. 退出码规则
 
@@ -276,4 +301,3 @@ Agent 模式下，如果失败 case 被 Agent 判定为不计入兼容性，或�
 - 修复层目前只修 AdapterSpec，不修迁移库源码。
 - Agent 不会自动安装依赖或修改系统环境。
 - `--agent-max-failures` 建议先设小，例如 3 到 10，确认报告质量后再扩大。
-

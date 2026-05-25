@@ -117,6 +117,12 @@ eval-migration run `
 # 查看帮助
 eval-migration --help
 
+# 推荐主入口：自动生成/加载 adapter，运行测试，输出高可读报告
+eval-migration eval --bridge-id torch4ms --docs /path/to/torch4ms/README.md --suite smoke --out reports/torch4ms_eval --yes
+
+# 使用已有 adapter 复现实验，但保持同样的报告目录结构
+eval-migration eval --adapter-file examples/torchax_adapter.json --suite all --out reports/torchax_eval --yes
+
 # 查看镜像后的 TorchBridgeBench core 帮助
 python scripts/tbbcc.py --help
 
@@ -132,6 +138,17 @@ eval-migration run --adapter-file examples/torchax_adapter.json --suite all --ye
 # 从远程 README 抽取并运行（需要 OPENAI_API_KEY）
 eval-migration run --readme-url https://raw.githubusercontent.com/google/torchax/main/README.md --suite smoke --yes
 ```
+
+`eval-migration eval` 是 Claude Code 插件 `/eval` 的脚本化对应物。它会写出：
+
+- `adapter.generated.json`
+- `effort_ledger.json`
+- `summary.md`
+- `summary.json`
+- 输出目录下的完整带时间戳报告
+
+`summary.md` 首页会直接给出可写进论文/汇报的指标卡：兼容率、首次通过率、
+ME、AR、Effort_adapt/Effort_repair、数值一致性和性能指标。
 
 ## Agent 工作流
 
