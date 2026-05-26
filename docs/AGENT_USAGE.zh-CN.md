@@ -71,16 +71,24 @@ source /home/ma-user/work/load_deepseek_agent_env.sh
 eval-migration run --help
 ```
 
-推荐使用新的主入口，它与 Claude Code 插件 `/eval` 对齐：
+推荐使用新的脚本化主入口。它对应 Claude Code 插件
+`/torchbridgebench:eval` 的自动评测流程，但 CLI 为了适合脚本和 CI 仍然使用
+显式参数：
 
 ```bash
 eval-migration eval \
   --bridge-id torch4ms \
-  --docs /path/to/torch4ms/README.md \
+  --docs /home/ma-user/work/ascend-torch4ms-ms272-stable/test_train_cnn.py \
   --suite smoke \
   --out reports_torch4ms_eval \
   --yes \
   --agent-mode revalidate
+```
+
+在 Claude Code TUI 里，插件侧推荐自然语言调用：
+
+```text
+/torchbridgebench:eval 评测 torch4ms，优先从本机 ascend-torch4ms-ms272-stable 找文档或最小用例，输出到 reports/torch4ms_eval
 ```
 
 这个命令会先生成 `adapter.generated.json` 和 `effort_ledger.json`，再运行测试，

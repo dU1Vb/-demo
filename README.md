@@ -117,8 +117,8 @@ Numeric fidelity fields (`numeric_fidelity` in the report) include `within_toler
 # Show help
 eval-migration --help
 
-# Recommended one-command evaluation: generate/load adapter, run tests, write focused reports
-eval-migration eval --bridge-id torch4ms --docs /path/to/torch4ms/README.md --suite smoke --out reports/torch4ms_eval --yes
+# Recommended scriptable evaluation: generate/load adapter, run tests, write focused reports
+eval-migration eval --bridge-id torch4ms --docs /home/ma-user/work/ascend-torch4ms-ms272-stable/test_train_cnn.py --suite smoke --out reports/torch4ms_eval --yes
 
 # Reproduce with an existing adapter while keeping the same report layout
 eval-migration eval --adapter-file examples/torchax_adapter.json --suite all --out reports/torchax_eval --yes
@@ -139,8 +139,15 @@ eval-migration run --adapter-file examples/torchax_adapter.json --suite all --ye
 eval-migration run --readme-url https://raw.githubusercontent.com/google/torchax/main/README.md --suite smoke --yes
 ```
 
-`eval-migration eval` is the scriptable counterpart to the Claude Code plugin
-`/eval` command. It writes:
+`eval-migration eval` is the scriptable CLI counterpart to the Claude Code
+plugin workflow exposed as `/torchbridgebench:eval`. The plugin command is
+natural-language first, for example:
+
+```text
+/torchbridgebench:eval 评测 torch4ms，优先从本机 ascend-torch4ms-ms272-stable 找文档或最小用例，输出到 reports/torch4ms_eval
+```
+
+The CLI remains flag-based because it is intended for scripts and CI. It writes:
 
 - `adapter.generated.json`
 - `effort_ledger.json`
