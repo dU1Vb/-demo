@@ -20,6 +20,9 @@ dependencies = [
 test = [
     "pytest>=8",
 ]
+plots = [
+    "matplotlib>=3.8",
+]
 
 [project.scripts]
 eval-migration = "agentorskill_cli.main:main"

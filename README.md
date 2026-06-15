@@ -137,6 +137,9 @@ eval-migration run --adapter-file examples/torchax_adapter.json --suite all --ye
 
 # Extract adapter from docs + run (requires OPENAI_API_KEY)
 eval-migration run --readme-url https://raw.githubusercontent.com/google/torchax/main/README.md --suite smoke --yes
+
+# Optional compatibility-analysis figures from existing reports
+eval-migration plot-reports --summary reports/torch4ms_eval/summary.json --out reports/torch4ms_eval/figures
 ```
 
 `eval-migration eval` is the scriptable CLI counterpart to the Claude Code
@@ -157,6 +160,14 @@ The CLI remains flag-based because it is intended for scripts and CI. It writes:
 
 The top of `summary.md` is a paper-ready metric card with compatibility,
 first-pass rate, ME, AR, effort split, numeric fidelity and performance.
+
+`eval-migration plot-reports` is optional. It reads one or more `summary.json`
+files and writes PDF/PNG figures such as failure taxonomy and
+compatibility-vs-raw-pass overviews. Install the plotting extra when needed:
+
+```bash
+pip install -e ".[plots]"
+```
 
 ## Agent workflow
 

@@ -279,6 +279,23 @@ migrate_at_k
 - `AR` 是 `1 - (ME / baseline_effort)`
 - `baseline_effort` 需要通过 `calibrate-ar` 对“无桥接器、纯翻译”任务做多次 reroll 校准得到
 
+可选生成兼容性分析图：
+
+```bash
+eval-migration plot-reports \
+  --summary reports_torch4ms_eval/summary.json \
+  --out reports_torch4ms_eval/figures
+```
+
+该命令会输出 `failure_taxonomy.pdf/.png` 和
+`compatibility_overview.pdf/.png`，用于快速查看主要失败类型以及
+compatibility rate 与 raw pass rate 的差异。绘图功能需要 Matplotlib；
+如未安装，可使用：
+
+```bash
+pip install -e ".[plots]"
+```
+
 ## 8. 退出码规则
 
 普通模式下，只要有失败 case，命令会返回非 0。

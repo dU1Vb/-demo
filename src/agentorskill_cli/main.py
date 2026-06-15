@@ -23,6 +23,7 @@ from agentorskill_cli.llm_adapter import extract_adapter_with_llm
 from agentorskill_cli.llm_provider import OpenAIChatProvider
 from agentorskill_cli.metrics import compute_evaluation_summary
 from agentorskill_cli.report import build_report_payload, write_reports
+from agentorskill_cli.report_plots import generate_report_plots
 from agentorskill_cli.test_suites.runner import (
     execute_plan,
     execute_plan_inprocess,
@@ -236,6 +237,32 @@ def cmd_calibrate_ar(
         indent=2,
         ensure_ascii=False,
     ))
+
+
+@app.command("plot-reports")
+def cmd_plot_reports(
+    summary: Annotated[
+        list[Path],
+        typer.Option("--summary", exists=True, help="Path to a summary.json report. Repeat for comparisons."),
+    ],
+    out: Annotated[Path, typer.Option("--out", "-o", help="Output directory for PDF/PNG figures")] = Path("reports/figures"),
+    failure_taxonomy: Annotated[
+        bool,
+        typer.Option("--failure-taxonomy", help="Generate stacked failure-class distribution figure."),
+    ] = False,
+    compatibility_overview: Annotated[
+        bool,
+        typer.Option("--compatibility-overview", help="Generate compatibility-vs-raw-pass overview figure."),
+    ] = False,
+) -> None:
+    """Generate optional compatibility-analysis figures from existing reports."""
+    kinds: list[str] = []
+    if failure_taxonomy:
+        kinds.append("failure-taxonomy")
+    if compatibility_overview:
+        kinds.append("compatibility-overview")
+    result = generate_report_plots(list(summary), out, kinds=kinds or None)
+    console.print(json.dumps(result, indent=2, ensure_ascii=False))
 
 
 def _load_adapter(
